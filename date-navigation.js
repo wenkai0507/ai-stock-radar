@@ -1,75 +1,104 @@
 (() => {
-  const picker = document.getElementById('datePicker');
-  const datebox = document.querySelector('.datebox');
-  if (!picker || !datebox || document.getElementById('prevTradingDay')) return;
+  function init() {
+    const picker = document.getElementById('datePicker');
+    const datebox = document.querySelector('.datebox');
+    if (!picker || !datebox) return;
+    if (document.getElementById('tradingDayNav')) return;
 
-  const wrap = document.createElement('div');
-  wrap.id = 'tradingDayNav';
-  wrap.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:2px;';
-  wrap.innerHTML = '<button id="prevTradingDay" type="button" title="前一個有交易資料的日期">← 前一交易日</button>' +
-                   '<button id="nextTradingDay" type="button" title="下一個有交易資料的日期">下一交易日 →</button>';
-  datebox.insertAdjacentElement('afterend', wrap);
+    const nav = document.createElement('div');
+    nav.id = 'tradingDayNav';
+    nav.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:2px;';
+    nav.innerHTML = `
+      <button id="prevTradingDay" type="button" title="前一個有交易資料的日期">← 前一交易日</button>
+      <button id="nextTradingDay" type="button" title="下一個有交易資料的日期">下一交易日 →</button>`;
+    datebox.insertAdjacentElement('afterend', nav);
 
-  const prev = document.getElementById('prevTradingDay');
-  const next = document.getElementById('nextTradingDay');
-  let tradingDates = [];
+    const prev = document.getElementById('prevTradingDay');
+    const next = document.getElementById('nextTradingDay');
+    let tradingDates = [];
 
-  const parseDate = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) ? new Date(s + 'T00:00:00Z') : null;
-  const iso = d => d.toISOString().slice(0, 10);
+    const isDate = s => typeof s === 'string' && s.length === 10 &&
+      s[4] === '-' && s[7] === '-' && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
 
-  async function loadDates() {
-    try {
-      const res = await fetch('data/latest.json?' + Date.now(), { cache: 'no-store' });
-      if (!res.ok) throw new Error('data unavailable');
-      const data = await res.json();
-      const set = new Set();
-      (data.stocks || []).forEach(stock => {
-        (stock.history || []).forEach(item => {
-          if (item && /^\\d{4}-\\d{2}-\\d{2}$/.test(item.date)) set.add(item.date);
-        });
-      });
-      tradingDates = Array.from(set).sort();
+    async function loadDates() {
+      try {
+        const res = await fetch('./data/latest.json?nav=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) throw new Error('data unavailable');
+        const data = await res.json();
+        const set = new Set();
+
+        // Build the trading calendar from every stock's retained history.
+        for (const stock of (data.stocks || [])) {
+          for (const item of (stock.history || [])) {
+            if (item && isDate(item.date)) set.add(item.date);
+          }
+        }
+
+        // Fallback to the dataset's current date if history is unavailable.
+        if (!set.size && isDate(data.updated_at?.slice(0, 10))) {
+          set.add(data.updated_at.slice(0, 10));
+        }
+
+        tradingDates = [...set].sort();
+        updateState();
+      } catch (err) {
+        console.error('Trading-day navigation failed:', err);
+        prev.disabled = true;
+        next.disabled = true;
+      }
+    }
+
+    function currentIndex() {
+      if (!tradingDates.length) return -1;
+      const value = picker.value;
+      if (!value) return tradingDates.length - 1;
+
+      const exact = tradingDates.indexOf(value);
+      if (exact >= 0) return exact;
+
+      // For a weekend/holiday, use the nearest trading day not later than it.
+      let i = tradingDates.length - 1;
+      while (i > 0 && tradingDates[i] > value) i--;
+      return i;
+    }
+
+    function goTo(index) {
+      if (index < 0 || index >= tradingDates.length) return;
+      const target = tradingDates[index];
+      picker.value = target;
+
+      // The main application listens to the date input/change events.
+      picker.dispatchEvent(new Event('input', { bubbles: true }));
+      picker.dispatchEvent(new Event('change', { bubbles: true }));
       updateState();
-    } catch (e) {
-      prev.disabled = true;
-      next.disabled = true;
     }
-  }
 
-  function currentIndex() {
-    if (!tradingDates.length) return -1;
-    const value = picker.value;
-    if (!value) return tradingDates.length - 1;
-    let exact = tradingDates.indexOf(value);
-    if (exact >= 0) return exact;
-    let i = tradingDates.findIndex(d => d > value);
-    return i < 0 ? tradingDates.length - 1 : Math.max(0, i - 1);
-  }
-
-  function setDate(index) {
-    if (index < 0 || index >= tradingDates.length) return;
-    picker.value = tradingDates[index];
-    picker.dispatchEvent(new Event('change', { bubbles: true }));
-    picker.dispatchEvent(new Event('input', { bubbles: true }));
-    updateState();
-  }
-
-  function updateState() {
-    const i = currentIndex();
-    prev.disabled = i <= 0;
-    next.disabled = i < 0 || i >= tradingDates.length - 1;
-    const selected = picker.value;
-    if (selected && tradingDates.length && !tradingDates.includes(selected)) {
-      const label = selected > tradingDates[tradingDates.length - 1] ? '已超過最新資料' : '休市日：按鈕會跳至最近交易日';
-      picker.title = label;
-    } else {
-      picker.title = '選擇日期';
+    function updateState() {
+      const i = currentIndex();
+      prev.disabled = i <= 0;
+      next.disabled = i < 0 || i >= tradingDates.length - 1;
     }
+
+    prev.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      goTo(currentIndex() - 1);
+    });
+
+    next.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      goTo(currentIndex() + 1);
+    });
+
+    picker.addEventListener('change', updateState);
+    picker.addEventListener('input', updateState);
+    loadDates();
   }
 
-  prev.addEventListener('click', () => setDate(currentIndex() - 1));
-  next.addEventListener('click', () => setDate(currentIndex() + 1));
-  picker.addEventListener('change', updateState);
-  picker.addEventListener('input', updateState);
-  loadDates();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
 })();

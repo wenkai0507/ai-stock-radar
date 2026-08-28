@@ -13,14 +13,16 @@ def get_json(p,t=""):
 def rows_for(ds,sid,start,end,t):return get_json({"dataset":ds,"data_id":sid,"start_date":start,"end_date":end},t).get("data",[])
 def mean(v):return sum(v)/len(v) if v else None
 def technical(prices):
- c=[float(x["close"]) for x in prices];v=[float(x.get("Trading_Volume",0) or 0) for x in prices];sma=lambda n:mean(c[-n:]) if len(c)>=n else None;ma5,ma20,ma60=sma(5),sma(20),sma(60);v20=mean(v[-20:]) if len(v)>=20 else None;vr=mean(v[-5:])/v20 if v20 else None
+ c=[float(x["close"]) for x in prices];v=[float(x.get("Trading_Volume",0) or 0) for x in prices]
+ if not c:return {}
+ sma=lambda n:mean(c[-n:]) if len(c)>=n else None;ma5,ma20,ma60=sma(5),sma(20),sma(60);v20=mean(v[-20:]) if len(v)>=20 else None;vr=mean(v[-5:])/v20 if v20 else None
  g=[];l=[]
  for i in range(1,len(c)):
   d=c[i]-c[i-1];g.append(max(d,0));l.append(max(-d,0))
  rsi=None
  if len(g)>=14:
   ag=mean(g[-14:]);al=mean(l[-14:]);rsi=100 if al==0 else 100-100/(1+ag/al)
- macd_line=macd_signal=hist=None
+ hist=None;macd_line=None;macd_signal=None
  if len(c)>=35:
   def ema(a,n):
    k=2/(n+1);e=a[0];o=[e]
@@ -41,15 +43,18 @@ def technical(prices):
  else:sig_text="中性"
  return {"ma5":round(ma5,2) if ma5 else None,"ma20":round(ma20,2) if ma20 else None,"ma60":round(ma60,2) if ma60 else None,"ma20_gap_pct":round(g20,2) if g20 is not None else None,"ma60_gap_pct":round(g60,2) if g60 is not None else None,"rsi14":round(rsi,2) if rsi is not None else None,"macd":round(macd_line,3) if macd_line is not None else None,"macd_signal":round(macd_signal,3) if macd_signal is not None else None,"macd_hist":round(hist,3) if hist is not None else None,"volume_ratio_5d_20d":round(vr,2) if vr is not None else None,"technical_signal":sig_text,"technical_score":score}
 def fetch_stock(s,t):
- today=datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)));ps=(today-timedelta(days=150)).strftime("%Y-%m-%d");fs=(today-timedelta(days=430)).strftime("%Y-%m-%d");cs=(today-timedelta(days=35)).strftime("%Y-%m-%d");end=today.strftime("%Y-%m-%d");prices=sorted(rows_for("TaiwanStockPrice",s["id"],ps,end,t),key=lambda x:x.get("date",""))
+ today=datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)));ps=(today-timedelta(days=430)).strftime("%Y-%m-%d");fs=ps;cs=(today-timedelta(days=35)).strftime("%Y-%m-%d");end=today.strftime("%Y-%m-%d")
+ raw=sorted(rows_for("TaiwanStockPrice",s["id"],ps,end,t),key=lambda x:x.get("date",""));prices=[{"date":x.get("date"),"close":float(x["close"]),"volume":float(x.get("Trading_Volume",0) or 0)} for x in raw if x.get("close") not in (None,"")]
  if not prices:raise RuntimeError(f"{s['id']} no price data")
- latest=prices[-1];prev=prices[-2] if len(prices)>1 else None;close=float(latest["close"]);pct=round((close-float(prev["close"]))/float(prev["close"])*100,2) if prev else None;tech=technical(prices);per=sorted(rows_for("TaiwanStockPER",s["id"],ps,end,t),key=lambda x:x.get("date",""));per=per[-1] if per else {}
+ latest=prices[-1];prev=prices[-2] if len(prices)>1 else None;close=latest["close"];pct=round((close-prev["close"])/prev["close"]*100,2) if prev else None;tech=technical(prices)
+ per=sorted(rows_for("TaiwanStockPER",s["id"],ps,end,t),key=lambda x:x.get("date",""));per=per[-1] if per else {}
  fin=rows_for("TaiwanStockFinancialStatements",s["id"],fs,end,t);em={}
  for r in fin:
   if r.get("type")=="EPS" and r.get("value") not in (None,""):
    try:em[r.get("date","")]=float(r["value"])
    except:pass
- es=sorted(em.items());eps_latest=es[-1][1] if es else None;eps_ttm=round(sum(x for _,x in es[-4:]),2) if es else None;eps_date=es[-1][0] if es else None;rev=sorted(rows_for("TaiwanStockMonthRevenue",s["id"],fs,end,t),key=lambda x:x.get("date",""));lr=rev[-1] if rev else {};revenue=float(lr["revenue"]) if lr.get("revenue") not in (None,"") else None;ry=lr.get("revenue_year");rm=lr.get("revenue_month");yoy=None
+ es=sorted(em.items());eps_latest=es[-1][1] if es else None;eps_ttm=round(sum(x for _,x in es[-4:]),2) if es else None;eps_date=es[-1][0] if es else None
+ rev=sorted(rows_for("TaiwanStockMonthRevenue",s["id"],fs,end,t),key=lambda x:x.get("date",""));lr=rev[-1] if rev else {};revenue=float(lr["revenue"]) if lr.get("revenue") not in (None,"") else None;ry=lr.get("revenue_year");rm=lr.get("revenue_month");yoy=None
  if revenue is not None and ry and rm:
   for r in reversed(rev[:-1]):
    if r.get("revenue_year")==int(ry)-1 and r.get("revenue_month")==int(rm):
@@ -57,8 +62,8 @@ def fetch_stock(s,t):
  chips=sorted(rows_for("TaiwanStockInstitutionalInvestorsBuySellWide",s["id"],cs,end,t),key=lambda x:x.get("date",""))[-20:]
  def net(r,p):return float(r.get(p+"_buy",0) or 0)-float(r.get(p+"_sell",0) or 0)
  foreign=sum(net(r,"Foreign_Investor") for r in chips);trust=sum(net(r,"Investment_Trust") for r in chips);dealer=sum(net(r,"Dealer_self")+net(r,"Dealer_Hedging")+net(r,"Dealer") for r in chips);inst=foreign+trust+dealer
- return {**s,"price":close,"pct":pct,"volume":latest.get("Trading_Volume"),"date":latest.get("date"),"price_source":"FinMind TaiwanStockPrice",**tech,"pe":float(per["PER"]) if per.get("PER") not in (None,"") else None,"pbr":float(per["PBR"]) if per.get("PBR") not in (None,"") else None,"dividend_yield":float(per["dividend_yield"]) if per.get("dividend_yield") not in (None,"") else None,"eps_latest":eps_latest,"eps_ttm":eps_ttm,"eps_date":eps_date,"revenue":revenue,"revenue_year":ry,"revenue_month":rm,"revenue_yoy":yoy,"revenue_date":lr.get("date"),"foreign_20d_net":round(foreign),"trust_20d_net":round(trust),"dealer_20d_net":round(dealer),"institution_20d_net":round(inst),"institution_date":chips[-1].get("date") if chips else None,"chips_score":88 if inst>0 else 68,"data_version":"V3.3"}
-def empty_stock(s):return {**s,"price":None,"pct":None,"volume":None,"date":None,"price_source":"unavailable","ma5":None,"ma20":None,"ma60":None,"ma20_gap_pct":None,"ma60_gap_pct":None,"rsi14":None,"macd":None,"macd_signal":None,"macd_hist":None,"volume_ratio_5d_20d":None,"technical_signal":"無資料","technical_score":60,"pe":None,"pbr":None,"dividend_yield":None,"eps_latest":None,"eps_ttm":None,"eps_date":None,"revenue":None,"revenue_year":None,"revenue_month":None,"revenue_yoy":None,"revenue_date":None,"foreign_20d_net":None,"trust_20d_net":None,"dealer_20d_net":None,"institution_20d_net":None,"institution_date":None,"chips_score":70,"data_version":"V3.3"}
+ return {**s,"price":close,"pct":pct,"volume":latest["volume"],"date":latest["date"],"price_source":"FinMind TaiwanStockPrice",**tech,"pe":float(per["PER"]) if per.get("PER") not in (None,"") else None,"pbr":float(per["PBR"]) if per.get("PBR") not in (None,"") else None,"dividend_yield":float(per["dividend_yield"]) if per.get("dividend_yield") not in (None,"") else None,"eps_latest":eps_latest,"eps_ttm":eps_ttm,"eps_date":eps_date,"revenue":revenue,"revenue_year":ry,"revenue_month":rm,"revenue_yoy":yoy,"revenue_date":lr.get("date"),"foreign_20d_net":round(foreign),"trust_20d_net":round(trust),"dealer_20d_net":round(dealer),"institution_20d_net":round(inst),"institution_date":chips[-1].get("date") if chips else None,"chips_score":88 if inst>0 else 68,"history":prices,"data_version":"V3.3"}
+def empty_stock(s):return {**s,"price":None,"pct":None,"volume":None,"date":None,"price_source":"unavailable","history":[],"ma5":None,"ma20":None,"ma60":None,"ma20_gap_pct":None,"ma60_gap_pct":None,"rsi14":None,"macd":None,"macd_signal":None,"macd_hist":None,"volume_ratio_5d_20d":None,"technical_signal":"無資料","technical_score":60,"pe":None,"pbr":None,"dividend_yield":None,"eps_latest":None,"eps_ttm":None,"eps_date":None,"revenue":None,"revenue_year":None,"revenue_month":None,"revenue_yoy":None,"revenue_date":None,"foreign_20d_net":None,"trust_20d_net":None,"dealer_20d_net":None,"institution_20d_net":None,"institution_date":None,"chips_score":70,"data_version":"V3.3"}
 def main():
  t=os.environ.get("FINMIND_TOKEN","").strip();now=datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)));out={"version":"V3.3","updated_at":now.strftime("%Y-%m-%d %H:%M:%S"),"source":"FinMind","stocks":[]};errors=[]
  with ThreadPoolExecutor(max_workers=6) as pool:

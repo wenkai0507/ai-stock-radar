@@ -32,12 +32,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Update V3.2 market and fundamental data
+      - name: Update V3.3 market, fundamental and technical data
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
         run: python scripts/update_data.py
-
       - name: Commit updated data
         run: |
           git config user.name 'github-actions[bot]'
@@ -46,20 +44,17 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No data changes to commit.'
           else
-            git commit -m 'data: update V3.2 stock fundamentals and chips'
+            git commit -m 'data: update V3.3 stock fundamentals chips and technicals'
             git push
           fi
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

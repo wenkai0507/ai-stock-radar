@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/update_data.py'
+      - 'index.html'
       - '.github/workflows/data-update.yml'
 
 permissions:
@@ -32,7 +33,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Update daily stock prices
+      - name: Update V3.2 market and fundamental data
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
         run: python scripts/update_data.py
@@ -45,7 +46,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No data changes to commit.'
           else
-            git commit -m 'data: update latest stock prices'
+            git commit -m 'data: update V3.2 stock fundamentals and chips'
             git push
           fi
 

@@ -20,6 +20,50 @@
     const isDate = s => typeof s === 'string' && s.length === 10 &&
       s[4] === '-' && s[7] === '-' && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
 
+    function setupConclusionLights() {
+      if (!document.getElementById('conclusionLightStyle')) {
+        const style = document.createElement('style');
+        style.id = 'conclusionLightStyle';
+        style.textContent = `
+          .conclusion-light{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:middle;box-shadow:0 0 0 2px rgba(0,0,0,.08),0 0 8px currentColor;flex:0 0 auto}
+          .conclusion-light.green{background:#12b76a;color:#12b76a}
+          .conclusion-light.yellow{background:#fdb022;color:#fdb022}
+          .conclusion-light.orange{background:#f79009;color:#f79009}
+          .conclusion-light.blue{background:#2e90fa;color:#2e90fa}
+          .conclusion-light.red{background:#f04438;color:#f04438}
+          .conclusion-light.gray{background:#98a2b3;color:#98a2b3}
+          .conclusion-light-wrap{display:flex;align-items:center;gap:0}
+        `;
+        document.head.appendChild(style);
+      }
+
+      const tbody = document.querySelector('#tbl tbody');
+      if (!tbody) return;
+      tbody.querySelectorAll('tr').forEach(row => {
+        const cell = row.cells && row.cells[0];
+        if (!cell || cell.querySelector('.conclusion-light')) return;
+        const badge = cell.querySelector('.badge');
+        const text = badge ? badge.textContent.trim() : cell.textContent.trim();
+        let color = 'gray';
+        let label = '中性';
+        if (text.includes('偏多')) { color = 'green'; label = '偏多／可研究'; }
+        else if (text.includes('等待站回20MA')) { color = 'yellow'; label = '等待站回20MA'; }
+        else if (text.includes('過熱')) { color = 'orange'; label = '過熱'; }
+        else if (text.includes('超跌觀察')) { color = 'blue'; label = '超跌觀察'; }
+        else if (text.includes('不追高')) { color = 'red'; label = '不追高'; }
+        const light = document.createElement('span');
+        light.className = `conclusion-light ${color}`;
+        light.title = `結論：${label}`;
+        const first = cell.querySelector('.conclusion') || cell;
+        first.insertBefore(light, first.firstChild);
+      });
+    }
+
+    const observer = new MutationObserver(() => setupConclusionLights());
+    const tableBody = document.querySelector('#tbl tbody');
+    if (tableBody) observer.observe(tableBody, { childList: true, subtree: true });
+    setupConclusionLights();
+
     async function loadDates() {
       try {
         const res = await fetch('./data/latest.json?nav=' + Date.now(), { cache: 'no-store' });

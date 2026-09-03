@@ -1,178 +1,27 @@
 (() => {
   function init() {
-    const picker = document.getElementById('datePicker');
-    const datebox = document.querySelector('.datebox');
-    if (!picker || !datebox) return;
-    if (document.getElementById('tradingDayNav')) return;
-
-    const nav = document.createElement('div');
-    nav.id = 'tradingDayNav';
-    nav.style.cssText = 'display:flex;align-items:center;gap:6px;margin-left:2px;';
-    nav.innerHTML = `
-      <button id="prevTradingDay" type="button" title="前一個有交易資料的日期">← 前一交易日</button>
-      <button id="nextTradingDay" type="button" title="下一個有交易資料的日期">下一交易日 →</button>`;
-    datebox.insertAdjacentElement('afterend', nav);
-
-    const prev = document.getElementById('prevTradingDay');
-    const next = document.getElementById('nextTradingDay');
-    let tradingDates = [];
-
-    const isDate = s => typeof s === 'string' && s.length === 10 &&
-      s[4] === '-' && s[7] === '-' && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
-
-    function setupConclusionLights() {
-      if (!document.getElementById('conclusionLightStyle')) {
-        const style = document.createElement('style');
-        style.id = 'conclusionLightStyle';
-        style.textContent = `
-          .conclusion-light{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:middle;box-shadow:0 0 0 2px rgba(0,0,0,.08),0 0 8px currentColor;flex:0 0 auto}
-          .conclusion-light.green{background:#12b76a;color:#12b76a}
-          .conclusion-light.yellow{background:#fdb022;color:#fdb022}
-          .conclusion-light.orange{background:#f79009;color:#f79009}
-          .conclusion-light.blue{background:#2e90fa;color:#2e90fa}
-          .conclusion-light.red{background:#f04438;color:#f04438}
-          .conclusion-light.gray{background:#98a2b3;color:#98a2b3}
-          .conclusion-light-wrap{display:flex;align-items:center;gap:0}
-        `;
-        document.head.appendChild(style);
-      }
-
-      const tbody = document.querySelector('#tbl tbody');
-      if (!tbody) return;
-      tbody.querySelectorAll('tr').forEach(row => {
-        const cell = row.cells && row.cells[0];
-        if (!cell || cell.querySelector('.conclusion-light')) return;
-        const badge = cell.querySelector('.badge');
-        const text = badge ? badge.textContent.trim() : cell.textContent.trim();
-        let color = 'gray';
-        let label = '中性';
-        if (text.includes('偏多')) { color = 'green'; label = '偏多／可研究'; }
-        else if (text.includes('等待站回20MA')) { color = 'yellow'; label = '等待站回20MA'; }
-        else if (text.includes('過熱')) { color = 'orange'; label = '過熱'; }
-        else if (text.includes('超跌觀察')) { color = 'blue'; label = '超跌觀察'; }
-        else if (text.includes('不追高')) { color = 'red'; label = '不追高'; }
-        const light = document.createElement('span');
-        light.className = `conclusion-light ${color}`;
-        light.title = `結論：${label}`;
-        const first = cell.querySelector('.conclusion') || cell;
-        first.insertBefore(light, first.firstChild);
-      });
+    const picker=document.getElementById('datePicker');
+    const datebox=document.querySelector('.datebox');
+    if(!picker||!datebox)return;
+    if(!document.getElementById('tradingDayNav')){
+      const nav=document.createElement('div');nav.id='tradingDayNav';nav.style.cssText='display:flex;align-items:center;gap:6px;margin-left:2px;';
+      nav.innerHTML='<button id="prevTradingDay" type="button" title="前一個有交易資料的日期">← 前一交易日</button><button id="nextTradingDay" type="button" title="下一個有交易資料的日期">下一交易日 →</button>';
+      datebox.insertAdjacentElement('afterend',nav);
     }
-
-    const observer = new MutationObserver(() => setupConclusionLights());
-    const tableBody = document.querySelector('#tbl tbody');
-    if (tableBody) observer.observe(tableBody, { childList: true, subtree: true });
-    setupConclusionLights();
-
-    async function loadDates() {
-      try {
-        const res = await fetch('./data/latest.json?nav=' + Date.now(), { cache: 'no-store' });
-        if (!res.ok) throw new Error('data unavailable');
-        const data = await res.json();
-        const set = new Set();
-        for (const stock of (data.stocks || [])) {
-          for (const item of (stock.history || [])) {
-            if (item && isDate(item.date)) set.add(item.date);
-          }
-        }
-        if (!set.size && isDate(data.updated_at?.slice(0, 10))) set.add(data.updated_at.slice(0, 10));
-        tradingDates = [...set].sort();
-        updateState();
-      } catch (err) {
-        console.error('Trading-day navigation failed:', err);
-        prev.disabled = true;
-        next.disabled = true;
-      }
+    const prev=document.getElementById('prevTradingDay'),next=document.getElementById('nextTradingDay');let tradingDates=[];
+    const isDate=s=>typeof s==='string'&&s.length===10&&s[4]==='-'&&s[7]==='-'&&!Number.isNaN(Date.parse(s+'T00:00:00Z'));
+    function lights(){
+      if(!document.getElementById('conclusionLightStyle')){const st=document.createElement('style');st.id='conclusionLightStyle';st.textContent='.conclusion-light{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:7px;vertical-align:middle;box-shadow:0 0 0 2px rgba(0,0,0,.08),0 0 8px currentColor}.conclusion-light.green{background:#12b76a;color:#12b76a}.conclusion-light.yellow{background:#fdb022;color:#fdb022}.conclusion-light.orange{background:#f79009;color:#f79009}.conclusion-light.blue{background:#2e90fa;color:#2e90fa}.conclusion-light.red{background:#f04438;color:#f04438}.conclusion-light.gray{background:#98a2b3;color:#98a2b3}';document.head.appendChild(st)}
+      const tbody=document.querySelector('#tbl tbody');if(!tbody)return;tbody.querySelectorAll('tr').forEach(row=>{const cell=row.cells?.[0];if(!cell||cell.querySelector('.conclusion-light'))return;const b=cell.querySelector('.badge'),t=b?b.textContent.trim():cell.textContent.trim();let c='gray',label='中性';if(t.includes('偏多')){c='green';label='偏多／可研究'}else if(t.includes('等待站回20MA')){c='yellow';label='等待站回20MA'}else if(t.includes('過熱')){c='orange';label='過熱'}else if(t.includes('超跌觀察')){c='blue';label='超跌觀察'}else if(t.includes('不追高')){c='red';label='不追高'}const dot=document.createElement('span');dot.className='conclusion-light '+c;dot.title='結論：'+label;(cell.querySelector('.conclusion')||cell).insertBefore(dot,(cell.querySelector('.conclusion')||cell).firstChild)})
     }
-
-    function currentIndex() {
-      if (!tradingDates.length) return -1;
-      const value = picker.value;
-      if (!value) return tradingDates.length - 1;
-      const exact = tradingDates.indexOf(value);
-      if (exact >= 0) return exact;
-      let i = tradingDates.length - 1;
-      while (i > 0 && tradingDates[i] > value) i--;
-      return i;
-    }
-
-    function goTo(index) {
-      if (index < 0 || index >= tradingDates.length) return;
-      picker.value = tradingDates[index];
-      picker.dispatchEvent(new Event('input', { bubbles: true }));
-      picker.dispatchEvent(new Event('change', { bubbles: true }));
-      updateState();
-    }
-
-    function updateState() {
-      const i = currentIndex();
-      prev.disabled = i <= 0;
-      next.disabled = i < 0 || i >= tradingDates.length - 1;
-    }
-
-    prev.addEventListener('click', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      goTo(currentIndex() - 1);
-    });
-    next.addEventListener('click', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      goTo(currentIndex() + 1);
-    });
-    picker.addEventListener('change', updateState);
-    picker.addEventListener('input', updateState);
-
-    // The data fetch is asynchronous. Wrap the main renderer before it receives
-    // the response so a single malformed stock record cannot blank the whole UI.
-    if (typeof window.render === 'function' && !window.__radarRenderWrapped) {
-      const originalRender = window.render;
-      const safe = v => {
-        if (v == null) return '-';
-        try { return String(v); } catch (_) { return '-'; }
-      };
-      window.render = function () {
-        try {
-          return originalRender();
-        } catch (err) {
-          console.error('Radar render failed; using safe renderer:', err);
-          try {
-            const tableBody = document.querySelector('#tbl tbody');
-            const source = Array.isArray(rows) ? rows : [];
-            if (tableBody) {
-              tableBody.innerHTML = source.map(x => {
-                const r = x || {};
-                const conclusion = safe(r.technical_signal);
-                const strategy = safe(r.strategy);
-                return `<tr>
-                  <td><div class="conclusion"><span class="badge">${conclusion}</span><span class="strategy">${strategy}</span></div></td>
-                  <td><b>${safe(r.name)}</b></td><td>${safe(r.id)}</td><td>${safe(r.category)}</td>
-                  <td>${safe(r.price)}</td><td>${safe(r.pct)}%</td><td><b>${safe(r.score)}</b></td>
-                  <td>${safe(r.industry_score)}</td><td>${safe(r.fundamental_score)}</td><td>${safe(r.valuation_score)}</td>
-                  <td>${safe(r.chips_score)}</td><td>${safe(r.technical_score)}</td><td>${safe(r.pe)}</td><td>${safe(r.eps_ttm)}</td>
-                  <td>${safe(r.revenue)}</td><td>${safe(r.revenue_yoy)}</td><td>${safe(r.foreign_20d_net)}</td>
-                  <td>${safe(r.trust_20d_net)}</td><td>${safe(r.institution_20d_net)}</td><td>${safe(r.ma5)}</td>
-                  <td>${safe(r.ma20)}</td><td>${safe(r.ma60)}</td><td>${safe(r.ma20_gap_pct)}</td><td>${safe(r.rsi14)}</td>
-                  <td>${safe(r.macd_hist)}</td><td>${safe(r.volume_ratio_5d_20d)}</td>
-                </tr>`;
-              }).join('');
-            }
-            const status = document.getElementById('status');
-            if (status) status.textContent = `V3.3｜資料已載入｜${source.length} 檔（安全顯示模式）`;
-          } catch (fallbackErr) {
-            console.error('Safe renderer failed:', fallbackErr);
-          }
-        }
-      };
-      window.__radarRenderWrapped = true;
-    }
-
-    loadDates();
+    const tb=document.querySelector('#tbl tbody');if(tb)new MutationObserver(lights).observe(tb,{childList:true,subtree:true});lights();
+    async function loadDates(){try{const r=await fetch('./data/latest.json?nav='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error('data unavailable');const d=await r.json(),set=new Set();for(const s of d.stocks||[])for(const x of s.history||[])if(isDate(x.date))set.add(x.date);if(!set.size&&isDate(d.updated_at?.slice(0,10)))set.add(d.updated_at.slice(0,10));tradingDates=[...set].sort();state()}catch(e){prev.disabled=true;next.disabled=true}}
+    function idx(){if(!tradingDates.length)return-1;const v=picker.value,e=tradingDates.indexOf(v);if(e>=0)return e;let i=tradingDates.length-1;while(i>0&&tradingDates[i]>v)i--;return i}
+    function go(i){if(i<0||i>=tradingDates.length)return;picker.value=tradingDates[i];picker.dispatchEvent(new Event('input',{bubbles:true}));picker.dispatchEvent(new Event('change',{bubbles:true}));state()}
+    function state(){const i=idx();prev.disabled=i<=0;next.disabled=i<0||i>=tradingDates.length-1}
+    prev.onclick=e=>{e.preventDefault();e.stopPropagation();go(idx()-1)};next.onclick=e=>{e.preventDefault();e.stopPropagation();go(idx()+1)};picker.addEventListener('change',state);picker.addEventListener('input',state);
+    if(typeof window.render==='function'&&!window.__radarRenderWrapped){const original=window.render,safe=v=>v==null?'-':String(v);window.render=function(){try{return original()}catch(err){console.error(err);const body=document.querySelector('#tbl tbody'),source=Array.isArray(window.rows)?window.rows:[];if(body)body.innerHTML=source.map(x=>{const r=x||{};return `<tr><td><div class="conclusion"><span class="badge">${safe(r.technical_signal)}</span><span class="strategy">${safe(r.strategy)}</span></div></td><td><b>${safe(r.name)}</b></td><td>${safe(r.id)}</td><td>${safe(r.category)}</td><td>${safe(r.price)}</td><td>${safe(r.pct)}%</td><td><b>${safe(r.score)}</b></td><td>${safe(r.industry_score)}</td><td>${safe(r.fundamental_score)}</td><td>${safe(r.valuation_score)}</td><td>${safe(r.chips_score)}</td><td>${safe(r.technical_score)}</td><td>${safe(r.pe)}</td><td>${safe(r.eps_ttm)}</td><td>${safe(r.revenue)}</td><td>${safe(r.revenue_yoy)}</td><td>${safe(r.foreign_20d_net)}</td><td>${safe(r.trust_20d_net)}</td><td>${safe(r.institution_20d_net)}</td><td>${safe(r.ma5)}</td><td>${safe(r.ma20)}</td><td>${safe(r.ma60)}</td><td>${safe(r.ma20_gap_pct)}</td><td>${safe(r.rsi14)}</td><td>${safe(r.macd_hist)}</td><td>${safe(r.volume_ratio_5d_20d)}</td></tr>`}).join('')}};window.__radarRenderWrapped=true}
+    const loadCustom=()=>{if(document.getElementById('customRadarScript'))return;const s=document.createElement('script');s.id='customRadarScript';s.src='./custom-watchlist.js?v=1';s.defer=true;document.body.appendChild(s)};loadCustom();loadDates();
   }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once: true });
-  } else {
-    init();
-  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();

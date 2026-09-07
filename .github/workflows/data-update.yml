@@ -10,7 +10,7 @@ on:
       - 'scripts/update_data.py'
       - 'scripts/build_periods.py'
       - 'index.html'
-      - 'date-navigation.js'
+      - 'v4-app.js'
       - '.github/workflows/data-update.yml'
 
 permissions:
@@ -34,14 +34,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Update V3.3 market, fundamental and technical data
+      - name: Update V4.0 market, fundamental and technical data
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
         run: python scripts/update_data.py
-      - name: Build V3.3 daily weekly monthly data
+      - name: Build V4.0 daily weekly monthly data
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
         run: python scripts/build_periods.py
+      - name: Validate V4.0 JavaScript
+        run: node --check v4-app.js
       - name: Commit updated data
         run: |
           git config user.name 'github-actions[bot]'
@@ -50,26 +52,15 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No data changes to commit.'
           else
-            git commit -m 'data: update V3.3 stock daily weekly monthly data'
+            git commit -m 'data: update V4.0 stock daily weekly monthly data'
             git push
           fi
-      - name: Inject date navigation script
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('index.html')
-          s = p.read_text(encoding='utf-8')
-          tag = '<script src="date-navigation.js"></script>'
-          if tag not in s:
-              s = s.replace('</body>', tag + '</body>')
-              p.write_text(s, encoding='utf-8')
-          PY
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: .
       - name: Deploy to GitHub Pages

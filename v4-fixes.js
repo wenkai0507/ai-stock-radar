@@ -13,7 +13,20 @@
   const cache=()=>get(CACHE_KEY,{});
   async function api(params){const r=await fetch(API+'?'+new URLSearchParams(params),{cache:'no-store'});if(!r.ok)throw Error(`FinMind HTTP ${r.status}`);const j=await r.json();if(j.status&&j.status!==200)throw Error(j.msg||'FinMind API error');return j.data||[]}
   async function resolveName(q){q=String(q||'').trim();if(!q)return null;const info=await api({dataset:'TaiwanStockInfo'});const hit=info.find(x=>String(x.stock_id||x.id)===q)||info.find(x=>String(x.stock_name||x.name||'').trim()===q)||info.find(x=>String(x.stock_name||x.name||'').includes(q));if(!hit)return null;return{id:String(hit.stock_id||hit.id),name:String(hit.stock_name||hit.name||q)}}
-  function addWatch(id,name){id=String(id);if(!/^\d{4,6}$/.test(id))return false;saveWatch([...watch(),id]);if(name){const a=custom(),c=a.find(x=>String(x.id)===id);if(c){c.name=name;saveCustom(a)}}return true}
+  function addWatch(id,name){
+    id=String(id); if(!/^\d{4,6}$/.test(id)) return false;
+    saveWatch([...watch(),id]);
+    const cached=cache()[id]?.data;
+    if(cached){
+      const a=custom().filter(x=>String(x.id)!==id);
+      saveCustom([...a,{id,name:cached.name||name||id}]);
+    }else if(name){
+      const a=custom();
+      const c=a.find(x=>String(x.id)===id);
+      if(c){c.name=name;saveCustom(a)}
+    }
+    return true;
+  }
   function diagnosisAddButton(){const head=document.querySelector('.diagnose-head');if(!head||head.querySelector('[data-fix-watch]'))return;const small=head.querySelector('h2 small'),id=small?.textContent?.trim();if(!id)return;const h2=head.querySelector('h2');const name=(h2?.childNodes?.[0]?.textContent||'').replace(/^🔬\s*/,'').trim()||id;const btn=document.createElement('button');btn.dataset.fixWatch='1';btn.style.marginTop='12px';const active=watch().includes(id);btn.textContent=active?'★ 已加入觀察名單':'☆ 加入觀察名單';btn.onclick=()=>{addWatch(id,name);btn.textContent='★ 已加入觀察名單'};const anchor=head.querySelector('.tag')||head.querySelector('.bigprice');if(anchor)anchor.insertAdjacentElement('afterend',btn);else head.firstElementChild?.appendChild(btn)}
   let repairingNames=false;
   function repairCustomNames(){if(repairingNames)return;const list=custom(),bad=list.filter(x=>/^\d{4,6}$/.test(String(x.name||''))||!x.name);if(!bad.length)return;repairingNames=true;Promise.all(bad.map(async x=>{try{const r=await resolveName(x.id);return r?{...x,name:r.name}:x}catch{return x}})).then(repaired=>{const m=new Map(list.map(x=>[String(x.id),x]));repaired.forEach(x=>m.set(String(x.id),x));saveCustom([...m.values()]);const box=$('customList');if(box&&document.querySelector('#customInput'))renderCustomCards(box)}).finally(()=>{repairingNames=false})}
@@ -34,7 +47,7 @@
           const q=$('fixWatchInput').value.trim();if(!q)return;const b=$('fixWatchAddBtn');
           try{b.disabled=true;b.textContent='確認中…';const r=await resolveName(q);if(!r)throw Error('找不到股票，請輸入正確股號或股票名稱');
             const customTab=[...document.querySelectorAll('[data-tab]')].find(x=>x.dataset.tab==='custom');
-            if(customTab){customTab.click();setTimeout(()=>{const i=$('customInput'),a=$('customAdd');if(i&&a){i.value=r.name;a.click();setTimeout(()=>{const w=[...document.querySelectorAll('[data-tab]')].find(x=>x.dataset.tab==='watch');if(w)w.click()},2600)}},350)}
+            if(customTab){ customTab.click(); setTimeout(()=>{ const i=$('customInput'),a=$('customAdd'); if(i&&a){ i.value=r.name; a.click(); let n=0; const timer=setInterval(()=>{ n++; const ok=custom().some(x=>String(x.id)===r.id)&&!!cache()[r.id]?.data; if(ok||n>=50){ clearInterval(timer); const w=[...document.querySelectorAll('[data-tab]')].find(x=>x.dataset.tab==='watch'); if(w)w.click(); } },300); } },350); }
             else addWatch(r.id,r.name);
           }catch(e){alert(e.message)}finally{b.disabled=false;b.textContent='＋ 新增觀察股'}
         };

@@ -11,6 +11,7 @@ on:
       - 'scripts/build_periods.py'
       - 'index.html'
       - 'v4-app.js'
+      - 'v4-fixes.js'
       - '.github/workflows/data-update.yml'
 
 permissions:
@@ -34,6 +35,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Inject V4 Pro fixes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          tag = '<script src="v4-fixes.js?v=4.0.1"></script>'
+          if tag not in s:
+              marker = '<script src="v4-app.js?v=4.0.0"></script>'
+              s = s.replace(marker, marker + tag)
+              p.write_text(s, encoding='utf-8')
+          PY
       - name: Update V4.0 market, fundamental and technical data
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
@@ -43,7 +56,9 @@ jobs:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
         run: python scripts/build_periods.py
       - name: Validate V4.0 JavaScript
-        run: node --check v4-app.js
+        run: |
+          node --check v4-app.js
+          node --check v4-fixes.js
       - name: Commit updated data
         run: |
           git config user.name 'github-actions[bot]'
